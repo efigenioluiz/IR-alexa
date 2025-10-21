@@ -16,6 +16,8 @@ IRrecv irrecv(recvPin);
 IRsend irsend(sendPin);
 decode_results results;
 
+unsigned long storedIRCode = 0;
+
 void setup()
 {
   Serial.begin(115200);
@@ -33,12 +35,17 @@ void setup()
 void loop()
 {
 
-  if (irrecv.decode(&results))
+  if (irrecv.decode(&results) )
   {
 
     Serial.println("Código recebido:");
     Serial.println(results.value, HEX);
-    // Serial.println(resultToHumanReadableBasic(&results));
+
+    if (results.value != 0xFFFFFFFF) {                               // Evita códigos de repetição
+      storedIRCode = results.value; // Armazena o código
+      Serial.print("Código armazenado: 0x");
+      Serial.println(storedIRCode, HEX);
+    }
 
     irrecv.resume();
   }
@@ -46,23 +53,28 @@ void loop()
   bool currentButtonState = digitalRead(buttonPin);
 
   // Detecta quando botão é pressionado' (mudança de HIGH para LOW)
-  if (lastButtonState == HIGH && currentButtonState == LOW)
+  if (lastButtonState == HIGH && currentButtonState == LOW && storedIRCode != 0xFFFFFFFF)
   {
+    digitalWrite(ledPin, HIGH);
     digitalWrite(ledPin, HIGH);
     digitalWrite(buzzerPin, HIGH);
 
-    unsigned long irCode = 0x20DF10EF;
-    irsend.sendNEC(irCode, 32);         // Envia o código IR
-    // irsend.sendKelon(0x3000007056, 48); // LIGA O AR CONDICIONADO
-    // irsend.sendKelon(0x3000007156, 48); // AUMENTA O AR CONDICIONADO
-    // irsend.sendKelon(0x3000007056, 48); // DIMINUI O AR CONDICIONADO
-    // irsend.sendKelon(0x5200007456, 48); // MODO O AR CONDICIONADO
-    // irsend.sendKelon(0x25200007456, 48); // OCILAR O AR CONDICIONADO
+    if (storedIRCode != 0)
+    {
+      unsigned long irCode = storedIRCode;
+      irsend.sendNEC(irCode, 32); // Envia o código IR armazenado
+      String message = "Code sent: 0x" + String(irCode, HEX);
+      Serial.println(message);
 
-    String message = "Code sent: 0x" + String(irCode, HEX);
-    Serial.println(message);
-    digitalWrite(ledPin, LOW);
-    digitalWrite(buzzerPin, LOW);
+      digitalWrite(ledPin, LOW);
+      digitalWrite(buzzerPin, LOW);
+
+      delay(300);
+    }
+    else
+    {
+      Serial.println("Sem Código Armazenado!");
+    }
   }
 
   lastButtonState = currentButtonState;
